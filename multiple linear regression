@@ -3,3 +3,6 @@
  # 2. How do weather conditions affect trip duration? Is the impact of weather conditions further accentuated on weekends?
  # 3. Are there any seasonal effects on trip duration?
 
+# new column should be: weekend (if day=(6,7), 1, 0)
+# Y duration = a0 + a1 * X1 weekend + a2 * X2 temperature + a3 * X3 rainfall + a4 * month + e
+
