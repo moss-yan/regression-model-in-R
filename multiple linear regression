@@ -3,6 +3,20 @@
  # 2. How do weather conditions affect trip duration? Is the impact of weather conditions further accentuated on weekends?
  # 3. Are there any seasonal effects on trip duration?
 
+# Y duration = a0 + a1 * X1 weekend + a2 * X2 temperature + a3 * X3 rainfall + a4 * month + a5 * station + e
+
+# read the data, change the address if you need to reproduce
+bixi4_part1<-read.csv("C:/Users/MossY/OneDrive/Desktop/Statistic Modelling/project 1/bixi4_part1.csv")
+head(bixi4_part1)
+
 # new column should be: weekend (if day=(6,7), 1, 0)
-# Y duration = a0 + a1 * X1 weekend + a2 * X2 temperature + a3 * X3 rainfall + a4 * month + e
+bixi4_part1$is_weekend <- ifelse(bixi4_part1$jj >= 6, 1, 0)
+
+# fit a multiple linear model (mod1) - without location
+mod1<-lm(dur~is_weekend+temp+precip+mm,data=bixi4_part1)
+summary(mod1)
+
+# fit a multiple linear model - with station
+
+
 
