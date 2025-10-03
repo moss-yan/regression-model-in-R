@@ -1,0 +1,236 @@
+---
+title: "Project 1"
+format: pdf
+editor: visual
+---
+
+## Read Data and Install Package
+
+\*change the address if need to reproduce
+
+```{r}
+
+bixi4_part1 <- read.csv("C:/Users/MossY/OneDrive/Desktop/Statistic Modelling/project 1 in statistical modelling/project 1/bixi4_part1.csv")
+head(bixi4_part1)
+
+# package
+if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(gridExtra)) install.packages("gridExtra")
+if (!require(broom)) install.packages("broom")
+if (!require(dplyr)) install.packages("dplyr")
+if (!require(stargazer)) install.packages("stargazer")
+if (!require(modelsummary))  install.packages("modelsummary")
+if (!require(car))  install.packages("car")
+if (!require(boot))  install.packages("boot")
+if (!require(here))  install.packages("here")
+if (!require(GGally))  install.packages("GGally")
+if (!require(lubridate))  install.packages("lubridate")
+if (!require(naniar))  install.packages("naniar")
+if (!require(tidyr))  install.packages("tidyr")
+if (!require(caret))  install.packages("caret")
+if (!require(corrplot))  install.packages("corrplot")
+if (!require(lmtest))  install.packages("lmtest")
+if (!require(stringi))  install.packages("stringi")
+
+library(ggplot2)
+library(ggExtra)
+library(broom)
+library(dplyr)
+library(stargazer)
+library(modelsummary)
+library(car)
+library(boot)
+library(here) 
+library(GGally)
+library(lubridate)
+library(naniar)
+library(tidyr)
+library(caret)
+library(corrplot)
+library(lmtest)
+library(stringi)
+
+```
+
+## Clean Data
+
+```{r}
+
+bixi4_part1$arrondissement <- ifelse(
+  stri_detect_fixed(bixi4_part1$arrondissement, "Villeray"),
+  "Villeray-Saint-Michel-Parc-Extension",
+  bixi4_part1$arrondissement)
+
+bixi4_part1$arrondissement <- ifelse(
+  stri_detect_fixed(bixi4_part1$arrondissement, "C.te"),
+  "Côte-des-Neiges - Notre-Dame-de-Grâce",
+  bixi4_part1$arrondissement)
+
+table(bixi4_part1$arrondissement)
+
+```
+
+## Check Relationships and Apply Transformations
+
+```{r}
+
+# check the relationship by plots
+x_vars <- c("temp", "precip", "jj", "mm", "arrondissement")
+
+create_plot <- function(x_var) {
+    ggplot(bixi4_part1, aes(x = .data[[x_var]], y = .data[["dur"]]))  +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = TRUE, 
+                fill = "steelblue", alpha = 0.5,   
+                color = "darkblue", size = 1) +
+    labs(title = paste("dur vs", x_var), x = x_var, y = "Trip Duration") }
+plot_list <- lapply(x_vars, create_plot)
+grid.arrange(grobs = plot_list, ncol = 2)
+
+# add variables
+bixi4_part1$is_weekend <- as.factor(ifelse(bixi4_part1$jj >= 6, "Yes", "No"))
+head(bixi4_part1$is_weekend) # the weekend contains 5,6,7
+
+bixi4_part1$rain <- as.factor(ifelse(bixi4_part1$precip > 0, "Yes", "No"))
+head(bixi4_part1$rain)
+
+bixi4_part1$season <- as.factor(bixi4_part1$mm)
+head(bixi4_part1$season)
+
+# summary data
+summary(bixi4_part1)
+
+##########################################################################
+
+# duration distribution
+histo_dur <- ggplot(bixi4_part1, aes(x = dur)) +
+  geom_histogram(binwidth = 5, fill = "lightblue", color = "black") +
+  labs(title = "Histogram of Trip Duration", x = "Duration (seconds)", y = "Frequency") +
+  theme_minimal()
+
+# add log(dur) to find the new relationship among variables
+bixi4_part1$logdur <- log(bixi4_part1$dur)
+
+scat_temp_by_wknd <- ggplot(bixi4_part1, aes(x = temp, y = logdur, color = is_weekend)) +
+  geom_point(alpha = 0.15, size = 0.8) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  facet_wrap(~ is_weekend) +
+  guides(color = "none") +
+  labs(title = "Log(Duration) vs Temperature by Weekday/Weekend",
+       x = "Temperature (°C)", y = "log(Duration in minutes)") +
+  theme_minimal()
+
+scat_temp_by_wknd1 <- ggplot(bixi4_part1, aes(x = precip, y = logdur, color = is_weekend)) +
+  geom_point(alpha = 0.15, size = 0.8) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  facet_wrap(~ is_weekend) +
+  guides(color = "none") +
+  labs(title = "Log(Duration) vs precip by Weekday/Weekend",
+       x = "precip (mm)", y = "log(Duration in minutes)") +
+  theme_minimal()
+
+grid.arrange(scat_temp_by_wknd, scat_temp_by_wknd1, ncol = 2)
+
+```
+
+## Initial Model
+
+```{r}
+mod <- lm(log(dur) ~ temp + precip + is_weekend + season + arrondissement 
+          + is_weekend:temp + is_weekend:precip
+            , data=bixi4_part1)
+summary(mod) # Adjusted R-squared: 0.02244
+
+mod1.1 <- lm(log(dur) ~ temp + precip + is_weekend + season + arrondissement 
+          + temp*precip + is_weekend*temp + is_weekend*precip
+            , data=bixi4_part1)
+summary(mod1.1) # Adjusted R-squared: 0.02244
+
+AIC(mod)
+AIC(mod1.1)
+
+```
+
+```{r}
+
+# talking about the mod1.1
+
+modld <- lm(log(dur) ~ is_weekend * temp * rain
+            , data = bixi4_part1)
+summary(modld)
+
+modld1 <- lm(log(dur) ~ is_weekend * temp + is_weekend * precip,
+             data = bixi4_part1)
+summary(modld1)
+
+modld2 <- lm(log(dur) ~ is_weekend * temp + is_weekend * rain,
+             data = bixi4_part1)
+summary(modld2)
+
+anova(modld,modld1,modld2)
+anova(modld1,modld2)
+AIC(modld1)
+AIC(modld2)
+```
+
+\$\$log(dur) = \\hat{\\beta}\_0 + \\hat{\\beta}\_1 \\temp + \\hat{\\beta}\_2 \\precip + \\hat{\\beta}\_3 \\isweekend + \\hat{\\beta}\_4 \\Summer + \\hat{\\beta}\_5 \\Fall + \\hat{\\beta}\_6 \\LePlateauMontRoyal + \\hat{\\beta}\_7 \\LeSudOuest + \\hat{\\beta}\_8 \\MercierHochelagaMaisonneuve + \\hat{\\beta}\_9 \\Outremont + \\hat{\\beta}\_10 \\RosemontLaPetitePatrie + \\hat{\\beta}\_11 \\Verdun + \\hat{\\beta}\_12 \\VilleMarie + \\hat{\\beta}\_13 \\VilleraySaintMichelParcExtension + \\hat{\\beta}\_14 \\(temp\**isweekend) + \\hat{\\beta}\_15 \\（precip*\*isweekend） + \\epsilon\$\$
+
+## Test for the Global Effect
+
+```{r}
+
+# full vs full_without_is_weekend 
+# Pr(>F)=0.001637 reject β3 weekend = 0
+mod.no.is_weekend <- lm(log(dur) ~ temp + precip + season + arrondissement 
+                          , data=bixi4_part1)
+summary(mod.no.is_weekend)
+anova(mod.no.is_weekend)
+anova(mod,mod.no.is_weekend) 
+
+# full vs full_without_precip 
+# Pr(>F)=0.8799 not reject β2 precip = 0
+mod.no.precip <- lm(log(dur) ~ temp + is_weekend + season + arrondissement +
+                      is_weekend*temp
+                          , data=bixi4_part1)
+summary(mod.no.precip)
+anova(mod.no.precip)
+anova(mod,mod.no.precip)
+
+# full vs full_without_weekend_weather_interaction 
+# Pr(>F)=0.8992 not reject β14 interaction temp = β15 interaction precip  = 0
+# after removing interaction, is_weekendYes is significant
+mod.no.week_weather_interaction <- lm(log(dur) ~ temp + precip + is_weekend +
+                                        season + arrondissement 
+                                      , data=bixi4_part1)
+summary(mod.no.week_weather_interaction)
+anova(mod.no.week_weather_interaction)
+anova(mod,mod.no.week_weather_interaction)
+
+# full vs add the long and lat dele
+# Pr(>F)=0.01618 maybe we can add the long and lat
+mod_in_longlat <- lm(log(dur) ~ temp + precip + is_weekend + season 
+                     + arrondissement + long + lat
+                     + is_weekend*temp + is_weekend*precip
+                     , data=bixi4_part1)
+summary(mod_in_longlat)
+anova(mod_in_longlat)
+anova(mod,mod_in_longlat)
+
+# Multicollinearity tests show all VIFs < 5. While only 'long' is statistically significant, we prefer 'arrondissement' for location representation due to its superior interpretability over geographic coordinates.
+vif(mod_in_longlat)
+
+# the former plots show mild curvature between 'dur' and 'temp'; quadratic fit (solid) may tracks better than linear (dashed) -> temp^2
+mod_in_temp2 <- lm(log(dur) ~ temp + I(temp^2) + precip + is_weekend + season 
+                   + arrondissement + is_weekend*temp + is_weekend*precip
+                   , data=bixi4_part1)
+summary(mod_in_temp2)
+
+# the comparison difference<2, so there is no substantial difference between models
+aic_comparison <- AIC(mod, mod_in_temp2)
+print(aic_comparison)
+
+```
+
+## Analysis Insighs
+
+## Limitation
